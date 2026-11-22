@@ -1,0 +1,34 @@
+name: Datos
+on:
+  push:
+    branches: [main]
+    paths: ["ingesta/**", "tests/**", ".github/workflows/**", "requirements.txt"]
+  schedule:
+    - cron: "41 23 * * 1-5"   # después del cierre de Nueva York y de la TRM del día
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: {group: datos, cancel-in-progress: false}
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300   # la primera corrida baja casi diez años de noticias con pausas de 6 s
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      # Precios de mercado: en la caché del flujo, no en el repositorio
+      - uses: actions/cache@v4
+        with: {path: datos, key: "datos-${{ github.run_id }}", restore-keys: "datos-"}
+      - run: pip install -r requirements.txt pytest
+      - run: pytest -q
+      - run: python ingesta/trm.py
+      - run: python ingesta/mercados.py
+      - run: python ingesta/noticias.py
+      - name: Guardar datos públicos
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add datos_publicos/
+          git diff --cached --quiet || (git commit -m "Datos actualizados" && git pull --rebase -X theirs && git push)
