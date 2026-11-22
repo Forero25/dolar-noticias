@@ -1,10 +1,10 @@
-import pathlib, sys
+import io, pathlib, sys, zipfile
 
 import pandas as pd
 import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "ingesta"))
-import noticias, trm  # noqa: E402
+import eventos, trm  # noqa: E402
 
 
 def test_trm_se_fecha_en_el_dia_de_las_operaciones():
@@ -16,34 +16,39 @@ def test_trm_se_fecha_en_el_dia_de_las_operaciones():
     assert d["trm"].tolist() == [3900.5, 3910.0, 3895.25]
 
 
-def test_gdelt_tono_y_volumen():
-    tono = {"timeline": [{"series": "Average Tone", "data": [{"date": "20170101T000000Z", "value": -1.5}, {"date": "20170102T000000Z", "value": 0.5}]}]}
-    vol = {"timeline": [{"series": "Article Count", "data": [{"date": "20170101T000000Z", "value": 12, "norm": 90000}]}]}
-    t, v = noticias.a_tabla(tono, "peso", "timelinetone"), noticias.a_tabla(vol, "peso", "timelinevolraw")
-    assert t["tono"].tolist() == [-1.5, 0.5] and v.loc[0, "articulos"] == 12 and v.loc[0, "total"] == 90000
+def fila(a1="", a2="", lugar="", tipo="", raiz=1, quad=1, gold=0.0, menc=1, tono=0.0):
+    f = [""] * eventos.N_COLUMNAS
+    f[0], f[1] = "1", "20261120"
+    v = {"actor1_pais": a1, "actor2_pais": a2, "actor1_tipo": tipo, "raiz": str(raiz), "quad": str(quad),
+         "goldstein": str(gold), "menciones": str(menc), "tono": str(tono), "lugar_pais": lugar}
+    for k, i in eventos.COL.items():
+        f[i] = v[k]
+    return "\t".join(f)
 
 
-def test_gdelt_rechaza_resolucion_semanal_pero_acepta_dias_faltantes():
-    semanal = {"timeline": [{"series": "Average Tone", "data": [{"date": f"201701{d:02d}T000000Z", "value": 1} for d in (1, 8, 15)]}]}
-    with pytest.raises(ValueError):
-        noticias.a_tabla(semanal, "x", "timelinetone")
-    con_hueco = {"timeline": [{"series": "Average Tone", "data": [{"date": f"201701{d:02d}T000000Z", "value": 1} for d in (1, 2, 3, 9)]}]}
-    assert len(noticias.a_tabla(con_hueco, "x", "timelinetone")) == 4
+def zip_de(filas):
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        z.writestr("20261120.export.CSV", "\n".join(filas) + "\n")
+    return b.getvalue()
 
 
-def test_tramos_cubren_todo_sin_huecos():
-    t = list(noticias.tramos(pd.Timestamp("2017-01-01"), pd.Timestamp("2017-12-31"), dias=100))
-    assert t[0][0] == pd.Timestamp("2017-01-01") and t[-1][1] == pd.Timestamp("2017-12-31")
-    assert all(sig[0] == ant[1] + pd.Timedelta(days=1) for ant, sig in zip(t, t[1:]))
+def test_eventos_agregados_por_tema():
+    filas = [fila(a1="COL", tipo="GOV", menc=3, tono=-6, gold=-5, quad=4, raiz=19),
+             fila(lugar="CO", menc=1, tono=2, gold=3, quad=1, raiz=4),
+             fila(a1="USA", menc=6, tono=1, gold=1, quad=1, raiz=4)]
+    d = eventos.agregar(eventos.leer(zip_de(filas)), pd.Timestamp("2026-11-20")).set_index("tema")
+    c = d.loc["colombia"]
+    assert c["eventos"] == 2 and c["articulos"] == 4 and c["total"] == 10
+    assert c["tono"] == pytest.approx((3 * -6 + 1 * 2) / 4)
+    assert c["violencia"] == pytest.approx(0.75) and c["conflicto"] == pytest.approx(0.75)
+    assert d.loc["colombia_gobierno", "eventos"] == 1 and d.loc["mundo", "articulos"] == 10
+    assert "venezuela" not in d.index
 
 
-def test_tramo_semanal_se_parte_en_dos(monkeypatch):
-    """Si GDELT devuelve un año con resolución semanal, se pide cada mitad por separado."""
-    def falso(q, modo, a, b):
-        paso = 7 if (b - a).days > 200 else 1
-        dias = pd.date_range(a, b, freq=f"{paso}D")
-        clave = "value"
-        return {"timeline": [{"data": [{"date": f.strftime("%Y%m%dT000000Z"), clave: 1, "norm": 10} for f in dias]}]}
-    monkeypatch.setattr(noticias, "pedir", falso)
-    d = noticias.bajar_tramo("x", "q", pd.Timestamp("2017-01-01"), pd.Timestamp("2017-12-31"))
-    assert len(d) == 365 and d["fecha"].is_unique and {"tono", "articulos"} <= set(d.columns)
+def test_eventos_rechaza_formato_distinto():
+    malo = io.BytesIO()
+    with zipfile.ZipFile(malo, "w") as z:
+        z.writestr("x.CSV", "\t".join(["1"] * 40) + "\n")
+    with pytest.raises(SystemExit):
+        eventos.leer(malo.getvalue())

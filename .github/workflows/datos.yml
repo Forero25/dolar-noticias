@@ -36,7 +36,7 @@ jobs:
       - if: steps.estado.outputs.seguir == 'si'
         run: python ingesta/trm.py && python ingesta/mercados.py
       - if: steps.estado.outputs.seguir == 'si'
-        run: python ingesta/noticias.py
+        run: python ingesta/eventos.py
       - name: Modelo (solo con la historia de noticias completa)
         if: steps.estado.outputs.seguir == 'si'
         run: |

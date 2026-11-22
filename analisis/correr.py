@@ -10,7 +10,7 @@ import choques, evaluacion as ev, modelos, variables  # noqa: E402
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 CONFIG = [("paseo_aleatorio", "propia"), ("media", "propia"), ("ridge", "propia"), ("ridge", "mercado"), ("ridge", "noticias"),
           ("gbm", "mercado"), ("gbm", "noticias")]
-TEMAS_CHOQUE = ["fiscal", "calificacion", "gobierno", "banrep", "orden_publico", "prensa_col_dolar"]
+TEMAS_CHOQUE = ["colombia", "colombia_gobierno", "venezuela", "eeuu", "mundo"]
 
 
 def cargar():

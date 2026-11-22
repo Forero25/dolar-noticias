@@ -37,7 +37,9 @@ def de_mercado(m: pd.DataFrame, fechas: pd.DatetimeIndex) -> pd.DataFrame:
 
 
 def de_noticias(n: pd.DataFrame, fechas: pd.DatetimeIndex) -> pd.DataFrame:
-    """Por tema: tono suavizado y su desviación frente a los 90 días previos; participación del tema en el total de noticias."""
+    """Por tema: tono suavizado y su desviación frente a los 90 días previos; participación del tema en el total de
+    menciones del día; y, cuando existen, la escala de Goldstein y la participación de hechos de conflicto, protesta
+    y violencia, en promedio de 7 días."""
     out = {}
     for tema, g in n.groupby("tema"):
         g = g.set_index("fecha").sort_index().asfreq("D")
@@ -46,6 +48,10 @@ def de_noticias(n: pd.DataFrame, fechas: pd.DatetimeIndex) -> pd.DataFrame:
         cuota = np.log((g["articulos"].rolling(7, min_periods=3).sum() + 1) / g["total"].rolling(7, min_periods=3).sum())
         d = pd.DataFrame({f"n_{tema}_tono7": tono, f"n_{tema}_tono_z": z, f"n_{tema}_cuota": cuota,
                           f"n_{tema}_cuota_d7": cuota.diff(7)})
+        # tipo de hechos que reporta la prensa (archivos de eventos de GDELT): escala de Goldstein y conflicto
+        for extra in ("goldstein", "conflicto", "protestas", "violencia"):
+            if extra in g:
+                d[f"n_{tema}_{extra}7"] = g[extra].rolling(7, min_periods=3).mean()
         out[tema] = d.reindex(d.index.union(fechas)).ffill().reindex(fechas)
     return pd.concat(out.values(), axis=1)
 
