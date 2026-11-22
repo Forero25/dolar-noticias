@@ -39,13 +39,19 @@ MODOS = {"timelinetone": "tono", "timelinevolraw": "volumen"}
 def pedir(query: str, modo: str, ini: pd.Timestamp, fin: pd.Timestamp) -> dict:
     params = {"query": query, "mode": modo, "format": "json",
               "startdatetime": ini.strftime("%Y%m%d000000"), "enddatetime": fin.strftime("%Y%m%d235959")}
+    ultimo = ""
     for intento in range(6):
-        r = requests.get(API, params=params, timeout=120)
-        time.sleep(PAUSA)
-        if r.ok and r.text.lstrip().startswith("{"):
-            return r.json()
+        try:
+            r = requests.get(API, params=params, timeout=120)
+            ultimo = f"HTTP {r.status_code}: {r.text[:300]!r}"
+            if r.ok and r.text.lstrip().startswith("{"):
+                time.sleep(PAUSA)
+                return r.json()
+        except requests.RequestException as e:
+            ultimo = repr(e)
+        print(f"  reintento {intento + 1} ({modo}, {ini.date()}): {ultimo}", flush=True)
         time.sleep(PAUSA * 2 ** intento)  # límite de velocidad o error temporal
-    sys.exit(f"GDELT no respondió: {modo} {query} {ini.date()}")
+    sys.exit(f"GDELT no respondió: {modo} {query} {ini.date()} — última respuesta: {ultimo}")
 
 
 def a_tabla(js: dict, tema: str, modo: str) -> pd.DataFrame:
