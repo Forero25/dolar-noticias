@@ -1,8 +1,8 @@
-name: Datos
+name: Datos y modelo
 on:
   push:
     branches: [main]
-    paths: ["ingesta/**", "tests/**", ".github/workflows/**", "requirements.txt"]
+    paths: ["ingesta/**", "analisis/**", "tests/**", ".github/workflows/**", "requirements.txt"]
   schedule:
     - cron: "41 23 * * 1-5"   # después del cierre de Nueva York y de la TRM del día
   workflow_dispatch:
@@ -25,10 +25,11 @@ jobs:
       - run: python ingesta/trm.py
       - run: python ingesta/mercados.py
       - run: python ingesta/noticias.py
+      - run: python analisis/correr.py
       - name: Guardar datos públicos
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add datos_publicos/
-          git diff --cached --quiet || (git commit -m "Datos actualizados" && git pull --rebase -X theirs && git push)
+          git add datos_publicos/ resultados/
+          git diff --cached --quiet || (git commit -m "Datos y resultados actualizados" && git pull --rebase -X theirs && git push)
