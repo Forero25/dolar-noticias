@@ -1,0 +1,20 @@
+{
+  "completo": false,
+  "temas_pendientes": [
+    "peso",
+    "banrep",
+    "fiscal",
+    "calificacion",
+    "petroleo_col",
+    "gobierno",
+    "orden_publico",
+    "prensa_col_economia",
+    "prensa_col_dolar",
+    "fed",
+    "petroleo_mundo",
+    "emergentes"
+  ],
+  "motivo": "timelinetone \"colombian peso\" 2017-01-01: HTTP 429: 'Please limit requests to one every 5 seconds or contact kalev.leetaru5@gmail.com for larger queries. All high",
+  "filas": 0,
+  "revisado": "2026-11-22T07:27+00:00"
+}
