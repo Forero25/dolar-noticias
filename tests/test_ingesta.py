@@ -25,7 +25,7 @@ def test_gdelt_tono_y_volumen():
 
 def test_gdelt_rechaza_resolucion_semanal_pero_acepta_dias_faltantes():
     semanal = {"timeline": [{"series": "Average Tone", "data": [{"date": f"201701{d:02d}T000000Z", "value": 1} for d in (1, 8, 15)]}]}
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         noticias.a_tabla(semanal, "x", "timelinetone")
     con_hueco = {"timeline": [{"series": "Average Tone", "data": [{"date": f"201701{d:02d}T000000Z", "value": 1} for d in (1, 2, 3, 9)]}]}
     assert len(noticias.a_tabla(con_hueco, "x", "timelinetone")) == 4
@@ -35,3 +35,15 @@ def test_tramos_cubren_todo_sin_huecos():
     t = list(noticias.tramos(pd.Timestamp("2017-01-01"), pd.Timestamp("2017-12-31"), dias=100))
     assert t[0][0] == pd.Timestamp("2017-01-01") and t[-1][1] == pd.Timestamp("2017-12-31")
     assert all(sig[0] == ant[1] + pd.Timedelta(days=1) for ant, sig in zip(t, t[1:]))
+
+
+def test_tramo_semanal_se_parte_en_dos(monkeypatch):
+    """Si GDELT devuelve un año con resolución semanal, se pide cada mitad por separado."""
+    def falso(q, modo, a, b):
+        paso = 7 if (b - a).days > 200 else 1
+        dias = pd.date_range(a, b, freq=f"{paso}D")
+        clave = "value"
+        return {"timeline": [{"data": [{"date": f.strftime("%Y%m%dT000000Z"), clave: 1, "norm": 10} for f in dias]}]}
+    monkeypatch.setattr(noticias, "pedir", falso)
+    d = noticias.bajar_tramo("x", "q", pd.Timestamp("2017-01-01"), pd.Timestamp("2017-12-31"))
+    assert len(d) == 365 and d["fecha"].is_unique and {"tono", "articulos"} <= set(d.columns)

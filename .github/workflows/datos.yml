@@ -4,7 +4,8 @@ on:
     branches: [main]
     paths: ["ingesta/**", "analisis/**", "tests/**", ".github/workflows/**", "requirements.txt"]
   schedule:
-    - cron: "41 23 * * 1-5"   # después del cierre de Nueva York y de la TRM del día
+    - cron: "41 23 * * 1-5"    # actualización diaria, después del cierre de Nueva York
+    - cron: "17 */2 * * *"     # solo mientras falte historia de noticias (GDELT limita las consultas)
   workflow_dispatch:
 permissions:
   contents: write
@@ -12,24 +13,42 @@ concurrency: {group: datos, cancel-in-progress: false}
 jobs:
   datos:
     runs-on: ubuntu-latest
-    timeout-minutes: 300   # la primera corrida baja casi diez años de noticias con pausas de 6 s
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: ¿Hace falta correr?
+        id: estado
+        run: |
+          completo=$(python3 -c "import json;print(json.load(open('datos_publicos/noticias_estado.json'))['completo'])" 2>/dev/null || echo False)
+          echo "completo=$completo" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event.schedule }}" = "17 */2 * * *" ] && [ "$completo" = "True" ]; then echo "seguir=no" >> "$GITHUB_OUTPUT"; else echo "seguir=si" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.estado.outputs.seguir == 'si'
+        uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       # Precios de mercado: en la caché del flujo, no en el repositorio
-      - uses: actions/cache@v4
+      - if: steps.estado.outputs.seguir == 'si'
+        uses: actions/cache@v4
         with: {path: datos, key: "datos-${{ github.run_id }}", restore-keys: "datos-"}
-      - run: pip install -r requirements.txt pytest
-      - run: pytest -q
-      - run: python ingesta/trm.py
-      - run: python ingesta/mercados.py
-      - run: python ingesta/noticias.py
-      - run: python analisis/correr.py
-      - name: Guardar datos públicos
-        if: always()
+      - if: steps.estado.outputs.seguir == 'si'
+        run: pip install -r requirements.txt pytest
+      - if: steps.estado.outputs.seguir == 'si'
+        run: pytest -q
+      - if: steps.estado.outputs.seguir == 'si'
+        run: python ingesta/trm.py && python ingesta/mercados.py
+      - if: steps.estado.outputs.seguir == 'si'
+        run: python ingesta/noticias.py
+      - name: Modelo (solo con la historia de noticias completa)
+        if: steps.estado.outputs.seguir == 'si'
+        run: |
+          if python3 -c "import json,sys;sys.exit(0 if json.load(open('datos_publicos/noticias_estado.json'))['completo'] else 1)"; then
+            python analisis/correr.py
+          else
+            echo "Falta historia de noticias: el modelo espera a la próxima corrida."
+          fi
+      - name: Guardar datos públicos y resultados
+        if: always() && steps.estado.outputs.seguir == 'si'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add datos_publicos/ resultados/
+          git add datos_publicos resultados
           git diff --cached --quiet || (git commit -m "Datos y resultados actualizados" && git pull --rebase -X theirs && git push)

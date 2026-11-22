@@ -8,7 +8,7 @@ prensa colombiana en español. Los modos de serie de tiempo llegan hasta el 1 de
 Las series se guardan en datos_publicos/noticias.csv (datos derivados de GDELT, de uso libre con cita)
 y cada corrida solo pide lo nuevo. GDELT pide no hacer más de una petición cada 5 segundos.
 """
-import pathlib, sys, time
+import json, pathlib, sys, time
 
 import pandas as pd
 import requests
@@ -17,7 +17,12 @@ RAIZ = pathlib.Path(__file__).resolve().parents[1]
 SALIDA = RAIZ / "datos_publicos" / "noticias.csv"
 API = "https://api.gdeltproject.org/api/v2/doc/doc"
 INICIO = pd.Timestamp("2017-01-01")
-PAUSA = 6
+PAUSA = 10
+ESTADO = RAIZ / "datos_publicos" / "noticias_estado.json"
+
+
+class Frenado(Exception):
+    """GDELT limitó las consultas: se guarda lo avanzado y se sigue en la próxima corrida."""
 
 TEMAS = {
     "peso": '"colombian peso"',
@@ -40,7 +45,7 @@ def pedir(query: str, modo: str, ini: pd.Timestamp, fin: pd.Timestamp) -> dict:
     params = {"query": query, "mode": modo, "format": "json",
               "startdatetime": ini.strftime("%Y%m%d000000"), "enddatetime": fin.strftime("%Y%m%d235959")}
     ultimo = ""
-    for intento in range(6):
+    for intento in range(4):
         try:
             r = requests.get(API, params=params, timeout=120)
             ultimo = f"HTTP {r.status_code}: {r.text[:300]!r}"
@@ -50,8 +55,8 @@ def pedir(query: str, modo: str, ini: pd.Timestamp, fin: pd.Timestamp) -> dict:
         except requests.RequestException as e:
             ultimo = repr(e)
         print(f"  reintento {intento + 1} ({modo}, {ini.date()}): {ultimo}", flush=True)
-        time.sleep(PAUSA * 2 ** intento)  # límite de velocidad o error temporal
-    sys.exit(f"GDELT no respondió: {modo} {query} {ini.date()} — última respuesta: {ultimo}")
+        time.sleep(PAUSA * 3 ** intento)  # límite de velocidad o error temporal: 10, 30, 90, 270 s
+    raise Frenado(f"{modo} {query} {ini.date()}: {ultimo[:120]}")
 
 
 def a_tabla(js: dict, tema: str, modo: str) -> pd.DataFrame:
@@ -68,8 +73,24 @@ def a_tabla(js: dict, tema: str, modo: str) -> pd.DataFrame:
     # Días sin artículos pueden faltar (temas poco cubiertos); una resolución semanal o mensual se nota en que
     # el salto más común entre fechas es mayor que un día.
     if len(d) > 2 and d["fecha"].diff().dropna().dt.days.median() > 1:
-        sys.exit(f"GDELT devolvió una resolución menor que diaria para {tema} ({modo}); reducir el tramo.")
+        raise ValueError("resolución menor que diaria")
     return d
+
+
+def bajar_tramo(tema: str, q: str, a: pd.Timestamp, b: pd.Timestamp) -> pd.DataFrame:
+    """Pide el tramo completo; si GDELT lo devuelve con resolución semanal, lo parte en dos."""
+    try:
+        partes = [a_tabla(pedir(q, modo, a, b), tema, modo) for modo in MODOS]
+    except ValueError:
+        if (b - a).days < 60:
+            sys.exit(f"GDELT no entrega resolución diaria ni en tramos cortos para {tema}.")
+        m = a + (b - a) / 2
+        m = m.normalize()
+        return pd.concat([bajar_tramo(tema, q, a, m), bajar_tramo(tema, q, m + pd.Timedelta(days=1), b)])
+    partes = [p for p in partes if not p.empty]
+    if len(partes) < 2:
+        return pd.DataFrame()
+    return partes[0].merge(partes[1], on=["fecha", "tema"], how="outer")
 
 
 def tramos(ini: pd.Timestamp, fin: pd.Timestamp, dias=180):
@@ -80,24 +101,35 @@ def tramos(ini: pd.Timestamp, fin: pd.Timestamp, dias=180):
         a = b + pd.Timedelta(days=1)
 
 
+def guardar(d: pd.DataFrame):
+    SALIDA.parent.mkdir(exist_ok=True)
+    d.sort_values(["tema", "fecha"]).to_csv(SALIDA, index=False)
+
+
 def main():
     hoy = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize() - pd.Timedelta(days=1)
-    previo = pd.read_csv(SALIDA, parse_dates=["fecha"]) if SALIDA.exists() else pd.DataFrame()
-    nuevas = []
-    for tema, q in TEMAS.items():
-        # se repiten los últimos 7 días porque GDELT completa días recientes con retraso
-        desde = INICIO if previo.empty or tema not in set(previo["tema"]) else previo.loc[previo["tema"] == tema, "fecha"].max() - pd.Timedelta(days=7)
-        for a, b in tramos(desde, hoy):
-            partes = [a_tabla(pedir(q, modo, a, b), tema, modo) for modo in MODOS]
-            partes = [p for p in partes if not p.empty]
-            if len(partes) == 2:
-                nuevas.append(partes[0].merge(partes[1], on=["fecha", "tema"], how="outer"))
-        print(tema, "listo")
-    d = pd.concat([previo, *nuevas], ignore_index=True).drop_duplicates(["fecha", "tema"], keep="last")
-    d = d.sort_values(["tema", "fecha"])
-    SALIDA.parent.mkdir(exist_ok=True)
-    d.to_csv(SALIDA, index=False)
-    print("noticias:", d.groupby("tema").size().to_dict())
+    d = pd.read_csv(SALIDA, parse_dates=["fecha"]) if SALIDA.exists() else pd.DataFrame(columns=["fecha", "tema"])
+    completo, motivo = True, ""
+    try:
+        for tema, q in TEMAS.items():
+            hechos = d.loc[d["tema"] == tema, "fecha"]
+            # se repiten los últimos 7 días porque GDELT completa los días recientes con retraso
+            desde = INICIO if hechos.empty else hechos.max() - pd.Timedelta(days=7)
+            for a, b in tramos(desde, hoy, dias=365):
+                nuevo = bajar_tramo(tema, q, a, b)
+                if not nuevo.empty:
+                    d = pd.concat([d, nuevo], ignore_index=True).drop_duplicates(["fecha", "tema"], keep="last")
+                    guardar(d)  # se guarda tramo a tramo: si GDELT frena, nada se pierde
+            print(tema, "al día", flush=True)
+    except Frenado as e:
+        completo, motivo = False, str(e)
+        print("GDELT frenó las consultas; se sigue en la próxima corrida:", motivo, flush=True)
+    ultimo = d.groupby("tema")["fecha"].max() if len(d) else pd.Series(dtype="datetime64[ns]")
+    faltan = [t for t in TEMAS if t not in ultimo or ultimo[t] < hoy - pd.Timedelta(days=10)]
+    estado = {"completo": completo and not faltan, "temas_pendientes": faltan, "motivo": motivo,
+              "filas": int(len(d)), "revisado": pd.Timestamp.now(tz="UTC").isoformat(timespec="minutes")}
+    ESTADO.write_text(json.dumps(estado, indent=2, ensure_ascii=False))
+    print(estado)
 
 
 if __name__ == "__main__":
