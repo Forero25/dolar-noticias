@@ -65,7 +65,9 @@ def a_tabla(js: dict, tema: str, modo: str) -> pd.DataFrame:
                 fila["articulos"], fila["total"] = p["value"], p.get("norm")
             filas.append(fila)
     d = pd.DataFrame(filas)
-    if len(d) > 1 and d["fecha"].diff().dropna().dt.days.max() > 1:
+    # Días sin artículos pueden faltar (temas poco cubiertos); una resolución semanal o mensual se nota en que
+    # el salto más común entre fechas es mayor que un día.
+    if len(d) > 2 and d["fecha"].diff().dropna().dt.days.median() > 1:
         sys.exit(f"GDELT devolvió una resolución menor que diaria para {tema} ({modo}); reducir el tramo.")
     return d
 

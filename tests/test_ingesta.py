@@ -23,10 +23,12 @@ def test_gdelt_tono_y_volumen():
     assert t["tono"].tolist() == [-1.5, 0.5] and v.loc[0, "articulos"] == 12 and v.loc[0, "total"] == 90000
 
 
-def test_gdelt_rechaza_resolucion_semanal():
-    js = {"timeline": [{"series": "Average Tone", "data": [{"date": "20170101T000000Z", "value": 1}, {"date": "20170108T000000Z", "value": 1}]}]}
+def test_gdelt_rechaza_resolucion_semanal_pero_acepta_dias_faltantes():
+    semanal = {"timeline": [{"series": "Average Tone", "data": [{"date": f"201701{d:02d}T000000Z", "value": 1} for d in (1, 8, 15)]}]}
     with pytest.raises(SystemExit):
-        noticias.a_tabla(js, "x", "timelinetone")
+        noticias.a_tabla(semanal, "x", "timelinetone")
+    con_hueco = {"timeline": [{"series": "Average Tone", "data": [{"date": f"201701{d:02d}T000000Z", "value": 1} for d in (1, 2, 3, 9)]}]}
+    assert len(noticias.a_tabla(con_hueco, "x", "timelinetone")) == 4
 
 
 def test_tramos_cubren_todo_sin_huecos():
