@@ -66,7 +66,8 @@ def comparar(trm: pd.Series, cierre: pd.Series, desde="2017-01-01") -> dict:
     out = {"n": len(r), "desde": str(r.index[0].date()), "hasta": str(r.index[-1].date()), "working_teorico": WORKING,
            "razon_varianzas_trm_cierre": float(r["trm"].var() / r["cierre"].var()), "razon_varianzas_teorica": 2 / 3,
            "correlacion_trm_cierre_mismo_dia": float(r["trm"].corr(r["cierre"])),
-           "correlacion_trm_hoy_cierre_ayer": float(r["trm"].corr(r["cierre"].shift(1)))}
+           "correlacion_trm_hoy_cierre_ayer": float(r["trm"].corr(r["cierre"].shift(1))),
+           "correlacion_trm_hoy_cierre_manana": float(r["trm"].corr(r["cierre"].shift(-1)))}
     for c in ("trm", "cierre"):
         x = r[c].to_numpy()
         out[c] = {"autocorrelacion_1": autocorr(x), "ic95": bootstrap_bloques(x), "ar1": ar1_vs_paseo(r[c])}
