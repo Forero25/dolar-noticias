@@ -13,13 +13,13 @@ concurrency: {group: datos, cancel-in-progress: false}
 jobs:
   datos:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
       - name: ¿Hace falta correr?
         id: estado
         run: |
-          completo=$(python3 -c "import json;print(json.load(open('datos_publicos/noticias_estado.json'))['completo'])" 2>/dev/null || echo False)
+          completo=$(python3 -c "import json;print(json.load(open('datos_publicos/noticias_estado.json'))['completo'] and json.load(open('datos_publicos/titulares_estado.json'))['completo'])" 2>/dev/null || echo False)
           echo "completo=$completo" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event.schedule }}" = "17 */2 * * *" ] && [ "$completo" = "True" ]; then echo "seguir=no" >> "$GITHUB_OUTPUT"; else echo "seguir=si" >> "$GITHUB_OUTPUT"; fi
       - if: steps.estado.outputs.seguir == 'si'
@@ -37,6 +37,8 @@ jobs:
         run: python ingesta/trm.py && python ingesta/mercados.py
       - if: steps.estado.outputs.seguir == 'si'
         run: python ingesta/eventos.py
+      - if: steps.estado.outputs.seguir == 'si'
+        run: python ingesta/titulares.py
       - name: Modelo (solo con la historia de noticias completa)
         if: steps.estado.outputs.seguir == 'si'
         run: |
