@@ -102,14 +102,18 @@ def granger(d: pd.DataFrame, cols: list[str], rezagos=5) -> dict:
 # ---------- 3. Días extremos ----------
 def dias_extremos(d: pd.DataFrame, cols: list[str], cuantil=0.95, n_boot=400, semilla=7) -> dict:
     """En los días de mayor subida o bajada de la TRM (5 % extremo), ¿cuánto distinto del resto estaba cada variable
-    de noticias el mismo día y el día anterior? Diferencia de medias estandarizada, con bootstrap por bloques mensuales."""
+    de noticias el mismo día y el día anterior? Diferencia de medias estandarizada, con bootstrap por bloques mensuales.
+    Cada variable se estandariza dentro de su año: la cobertura de GDELT cambia con los años y los días extremos se
+    concentran en algunos años (2020, 2022, 2023), así que comparar contra todo el periodo mezclaría las dos tendencias."""
     r = retornos(d)
     a = r.abs()
     umbral = a.quantile(cuantil)
     rng = np.random.default_rng(semilla)
-    out = {"umbral_pct": float(umbral * 100), "n_extremos": int((a > umbral).sum()), "variables": {}}
+    out = {"umbral_pct": float(umbral * 100), "n_extremos": int((a > umbral).sum()),
+           "extremos_por_anio": {str(k): int(v) for k, v in (a > umbral).groupby(a.index.year).sum().items()}, "variables": {}}
     for c in cols:
-        z = (d[c] - d[c].mean()) / d[c].std()
+        g = d[c].groupby(d.index.year)
+        z = (d[c] - g.transform("mean")) / g.transform("std")
         res = {}
         for nombre, serie in (("mismo_dia", z), ("dia_anterior", z.shift(1))):
             df = pd.DataFrame({"z": serie, "ext": a > umbral, "mes": d.index.to_period("M")}).dropna()
@@ -192,4 +196,6 @@ def series_graficas(d: pd.DataFrame, titulares: pd.DataFrame | None) -> dict:
         out["titulares_totales"] = int(titulares["con_texto"].sum())
         out["titulares_es"] = int(titulares["es"].sum())
         out["titulares_en"] = int(titulares["en"].sum())
+        out["titulares_diarios_por_anio"] = {str(k): float(v) for k, v in titulares.groupby(titulares["fecha"].dt.year)["con_texto"].mean().items()}
+        out["menciones_por_tema"] = {k[2:]: int(titulares[k].sum()) for k in titulares.columns if k.startswith("t_")}
     return out
