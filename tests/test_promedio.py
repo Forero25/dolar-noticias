@@ -24,3 +24,11 @@ def test_working_promedio_vs_cierre():
     assert r["razon_varianzas_trm_cierre"] == pytest.approx(2 / 3, abs=0.06)
     assert r["trm"]["ar1"]["rmse_relativo"] < 0.99 and r["trm"]["ar1"]["dm"]["p"] < 0.01
     assert r["cierre"]["ar1"]["rmse_relativo"] > 0.995
+
+
+def test_alinea_el_cierre_fechado_un_dia_despues():
+    trm, cierre = dias_sinteticos(semilla=3)
+    desplazado = pd.Series(cierre.to_numpy(), index=cierre.index + pd.offsets.BDay(1))  # como lo fecha Yahoo
+    r = promedio.comparar(trm, desplazado, desde="2010-01-01")
+    assert r["desfase_cierre_dias"] == 1
+    assert abs(r["cierre"]["autocorrelacion_1"]) < 0.05 and r["correlacion_trm_cierre_mismo_dia"] > 0.5

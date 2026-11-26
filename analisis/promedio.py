@@ -59,11 +59,19 @@ def ar1_vs_paseo(r: pd.Series, inicio="2020-01-01", cada=20) -> dict:
 def comparar(trm: pd.Series, cierre: pd.Series, desde="2017-01-01") -> dict:
     """trm y cierre indexados por fecha de negociación."""
     lt, lc = np.log(trm), np.log(cierre)
+    # Yahoo puede fechar el cierre un día después de la negociación en Colombia. Se elige el desfase (−1, 0 o +1
+    # días hábiles) con el que los cambios diarios de la TRM y del cierre más se parecen, y se reporta.
+    base = pd.DataFrame({"trm": lt, "cierre": lc}).dropna()
+    base = base[base.index >= pd.Timestamp(desde)]
+    rb = base.diff()
+    corr = {k: float(rb["trm"].corr(rb["cierre"].shift(-k))) for k in (-1, 0, 1)}
+    desfase = max(corr, key=corr.get)
+    lc = lc.shift(-desfase)
     d = pd.DataFrame({"trm": lt, "cierre": lc}).dropna()
     d = d[d.index >= pd.Timestamp(desde)]
     r = d.diff().dropna()
     r = r[(r.abs() < 0.08).all(axis=1)]  # fuera saltos imposibles en un día (errores de la serie de Yahoo)
-    out = {"n": len(r), "desde": str(r.index[0].date()), "hasta": str(r.index[-1].date()), "working_teorico": WORKING,
+    out = {"desfase_cierre_dias": desfase, "correlacion_por_desfase": {str(k): v for k, v in corr.items()}, "n": len(r), "desde": str(r.index[0].date()), "hasta": str(r.index[-1].date()), "working_teorico": WORKING,
            "razon_varianzas_trm_cierre": float(r["trm"].var() / r["cierre"].var()), "razon_varianzas_teorica": 2 / 3,
            "correlacion_trm_cierre_mismo_dia": float(r["trm"].corr(r["cierre"])),
            "correlacion_trm_hoy_cierre_ayer": float(r["trm"].corr(r["cierre"].shift(1))),
