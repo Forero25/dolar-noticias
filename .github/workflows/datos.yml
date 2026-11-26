@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
+      # Una corrida en cola parte del commit que la disparó: se trae lo último para no repetir descargas ya guardadas
+      - run: git pull --ff-only origin main || true
       - name: ¿Hace falta correr?
         id: estado
         run: |
