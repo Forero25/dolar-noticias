@@ -6,7 +6,13 @@ El punto de partida es incómodo y conocido: desde Meese y Rogoff (1983), casi n
 
 ## Resultado
 
-Las noticias no ayudan a pronosticar la TRM. A un día, solo un modelo con la propia historia de la TRM le gana al paseo aleatorio, y esa ventaja viene de que la TRM es un promedio de las operaciones del día (efecto Working, 1960): sus cambios tienen memoria y los del precio de cierre no. A 5 y 20 días ningún modelo le gana. Los choques de tono de las noticias no mueven la TRM de forma significativa. Los intervalos del 90 % cubren cerca de lo prometido.
+Las noticias no mueven el dólar de una forma que se pueda anticipar. Con eventos codificados por GDELT y más de 230.000 titulares sobre Colombia (temas y tono extraídos del texto de los enlaces, en español e inglés):
+
+- **Dirección:** a un día solo un modelo con la propia historia de la TRM le gana al paseo aleatorio, por el efecto Working (la TRM es un promedio del día: sus cambios tienen memoria y los del cierre no). A 5 y 20 días nadie le gana. Ni los eventos ni los titulares le agregan algo al mercado.
+- **Volatilidad:** el HAR explica parte del tamaño del movimiento de mañana; agregar noticias empeora el pronóstico fuera de muestra.
+- **Movimientos grandes:** las noticias no mejoran el AUC de un modelo de mercado.
+- **Adelanto y rezago:** con las sorpresas de cada variable (residuo de un AR(5)), las correlaciones cruzadas fuera de la banda son menos que las que daría el azar, y ninguna prueba de Granger sobrevive a la corrección de Holm.
+- **Días extremos y gobiernos:** comparando dentro de cada año, ninguna variable de noticias cambia en la víspera de los días extremos; la relación tampoco aparece en ningún gobierno.
 
 Artículo: [ES](https://nicolasforero.pages.dev/escritos/dolar-noticias/) · [EN](https://nicolasforero.pages.dev/en/writing/dollar-news/). Las cifras actualizadas están en `resultados/evaluacion.json`.
 
@@ -18,6 +24,7 @@ Artículo: [ES](https://nicolasforero.pages.dev/escritos/dolar-noticias/) · [EN
 | [FRED](https://fred.stlouisfed.org/) | Brent, dólar amplio, Tesoro a 2 y 10 años, VIX, tasa de la Fed, inflación esperada, peso mexicano, real brasileño | 2016 |
 | Yahoo Finance | Peso chileno, sol peruano, bonos emergentes (EMB) | 2016 |
 | [GDELT 1.0, archivos diarios de eventos](http://data.gdeltproject.org/events/index.html) | Hechos que reportan las noticias del mundo, codificados por GDELT: actores, lugar, tipo de hecho (CAMEO), tono de la cobertura y menciones | 2017 |
+| Enlaces de esos eventos (columna SOURCEURL) | Titulares sobre Colombia: el texto del enlace, con temas y tono por diccionarios propios en español e inglés (`ingesta/titulares.py`) | 2017 |
 
 La TRM que rige un día se calcula con las operaciones del día hábil anterior; aquí cada valor se fecha el día de las operaciones, para que el modelo nunca use información que no se conocía.
 
@@ -39,7 +46,8 @@ GitHub Actions baja los datos y corre todo cada día hábil (`.github/workflows/
 
 - **No es una recomendación de inversión ni de cobertura cambiaria.** Mide qué tan bien se habría pronosticado en el pasado.
 - **No promete ganarle al paseo aleatorio.** Si las noticias no ayudan, el resultado lo dice.
-- **No lee los artículos por su cuenta.** Usa la codificación que GDELT hace de las noticias (tipo de hecho, tono, menciones); los errores de esa codificación pasan al modelo.
+- **No lee la prensa colombiana.** El 98 % de los titulares con texto vienen de enlaces en inglés: es la mirada de la prensa internacional. Los diccionarios de temas y tono son listas de palabras, no un modelo de lenguaje.
+- **No lee los artículos completos.** Usa la codificación que GDELT hace de las noticias (tipo de hecho, tono, menciones); los errores de esa codificación pasan al modelo.
 - **No publica precios de mercado.** Solo la TRM (dato abierto oficial) y las series de noticias de GDELT quedan en el repositorio; el resto se descarga en cada corrida.
 - **El cierre de Yahoo no es oficial.** Se usa solo para la comparación con la TRM; Yahoo lo fecha un día después de la sesión y el código corrige ese desfase.
 - **No explica causas.** Un tono negativo que antecede a una devaluación puede reflejar lo que ya estaba pasando.
