@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import choques, evaluacion as ev, modelos, variables  # noqa: E402
+import choques, evaluacion as ev, modelos, promedio, variables  # noqa: E402
 
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 CONFIG = [("paseo_aleatorio", "propia"), ("media", "propia"), ("ridge", "propia"), ("ridge", "mercado"), ("ridge", "noticias"),
@@ -64,6 +64,10 @@ def main():
     out["evaluacion"] = evaluar(d)
     out["choques"] = {t: choques.respuesta(d, t) for t in TEMAS_CHOQUE if f"n_{t}_tono_z" in d}
     out["hoy"] = pronostico_hoy(d, out["evaluacion"])
+    merc = pd.read_parquet(RAIZ / "datos" / "mercados.parquet")
+    if "usd_cop_cierre" in merc:
+        trm = pd.read_csv(RAIZ / "datos_publicos" / "trm.csv", parse_dates=["fecha"]).set_index("fecha")["trm"]
+        out["promedio"] = promedio.comparar(trm, merc["usd_cop_cierre"])
     (RAIZ / "resultados").mkdir(exist_ok=True)
     (RAIZ / "resultados" / "evaluacion.json").write_text(json.dumps(out, indent=2, ensure_ascii=False))
     for h, r in out["evaluacion"].items():

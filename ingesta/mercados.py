@@ -2,7 +2,8 @@
 
 FRED (sin clave, archivo fredgraph.csv): petróleo Brent, dólar amplio, tasas del Tesoro, VIX, tasa de la Fed,
 expectativas de inflación y monedas de pares (peso mexicano, real brasileño).
-Yahoo Finance: peso chileno, sol peruano y el ETF de bonos emergentes (EMB).
+Yahoo Finance: peso chileno, sol peruano, el ETF de bonos emergentes (EMB) y el cierre diario del peso
+colombiano (COP=X), que se usa solo para comparar con la TRM, no como variable del modelo.
 Los precios no se publican en el repositorio: viven en la caché del flujo.
 """
 import io, pathlib, sys, time
@@ -14,7 +15,7 @@ import yfinance as yf
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 FRED = {"DCOILBRENTEU": "brent", "DTWEXBGS": "dolar_amplio", "DGS10": "tesoro_10a", "DGS2": "tesoro_2a",
         "VIXCLS": "vix", "DFF": "tasa_fed", "T5YIE": "inflacion_esperada_5a", "DEXMXUS": "usd_mxn", "DEXBZUS": "usd_brl"}
-YAHOO = {"CLP=X": "usd_clp", "PEN=X": "usd_pen", "EMB": "bonos_emergentes"}
+YAHOO = {"CLP=X": "usd_clp", "PEN=X": "usd_pen", "EMB": "bonos_emergentes", "COP=X": "usd_cop_cierre"}
 
 
 def fred(serie: str) -> pd.Series:
