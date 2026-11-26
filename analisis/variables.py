@@ -56,11 +56,35 @@ def de_noticias(n: pd.DataFrame, fechas: pd.DatetimeIndex) -> pd.DataFrame:
     return pd.concat(out.values(), axis=1)
 
 
-def panel(trm: pd.DataFrame, mercados: pd.DataFrame, noticias: pd.DataFrame) -> pd.DataFrame:
+TEMAS_TITULARES = ["dolar", "politica_monetaria", "petroleo", "fiscal", "calificacion", "elecciones", "gobierno",
+                   "violencia", "protestas", "venezuela", "eeuu"]
+
+
+def de_titulares(t: pd.DataFrame, fechas: pd.DatetimeIndex) -> pd.DataFrame:
+    """Titulares sobre Colombia (texto de los enlaces): proporción de noticias de cada tema, tono general y por tema,
+    en promedios de 7 días y como desviación frente a los 90 días previos."""
+    t = t.set_index("fecha").sort_index().asfreq("D")
+    base = t["con_texto"].rolling(7, min_periods=3).sum()
+    out = {"n_tit_volumen": np.log1p(t["con_texto"].rolling(7, min_periods=3).mean())}
+    tono = t["tono"].rolling(7, min_periods=3).mean()
+    out["n_tit_tono7"] = tono
+    out["n_tit_tono_z"] = (tono - tono.rolling(90, min_periods=30).mean()) / tono.rolling(90, min_periods=30).std()
+    for tema in TEMAS_TITULARES:
+        cuota = t[f"t_{tema}"].rolling(7, min_periods=3).sum() / base
+        out[f"n_tit_{tema}"] = cuota
+        out[f"n_tit_{tema}_z"] = (cuota - cuota.rolling(90, min_periods=30).mean()) / cuota.rolling(90, min_periods=30).std()
+    d = pd.DataFrame(out)
+    return d.reindex(d.index.union(fechas)).ffill(limit=5).reindex(fechas)
+
+
+def panel(trm: pd.DataFrame, mercados: pd.DataFrame, noticias: pd.DataFrame, titulares: pd.DataFrame | None = None) -> pd.DataFrame:
     s = trm.set_index("fecha")["trm"].sort_index()
     s = s[s.index.dayofweek < 5]
     fechas = s.index
-    d = pd.concat([de_trm(s), de_mercado(mercados, fechas), de_noticias(noticias, fechas)], axis=1)
+    partes = [de_trm(s), de_mercado(mercados, fechas), de_noticias(noticias, fechas)]
+    if titulares is not None and len(titulares):
+        partes.append(de_titulares(titulares, fechas))
+    d = pd.concat(partes, axis=1)
     for h in HORIZONTES:
         d[f"y{h}"] = objetivo(s, h)
     d["trm"] = s
@@ -71,4 +95,6 @@ def columnas(d: pd.DataFrame, conjunto: str) -> list[str]:
     base = [c for c in d.columns if c.startswith("trm_")]
     mercado = [c for c in d.columns if not c.startswith(("trm", "n_", "y"))]
     noticias = [c for c in d.columns if c.startswith("n_")]
-    return {"propia": base, "mercado": base + mercado, "noticias": base + mercado + noticias, "solo_noticias": base + noticias}[conjunto]
+    titulares = [c for c in d.columns if c.startswith("n_tit_")]
+    return {"propia": base, "mercado": base + mercado, "noticias": base + mercado + noticias, "solo_noticias": base + noticias,
+            "titulares": base + mercado + titulares}[conjunto]
