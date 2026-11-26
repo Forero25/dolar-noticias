@@ -4,6 +4,12 @@ Este repositorio pronostica la TRM (la tasa de cambio oficial del peso colombian
 
 El punto de partida es incómodo y conocido: desde Meese y Rogoff (1983), casi ningún modelo le gana de forma consistente al paseo aleatorio, es decir, a pronosticar que mañana la tasa será igual a la de hoy. Todo aquí se mide contra ese rival.
 
+## Resultado
+
+Las noticias no ayudan a pronosticar la TRM. A un día, solo un modelo con la propia historia de la TRM le gana al paseo aleatorio, y esa ventaja viene de que la TRM es un promedio de las operaciones del día (efecto Working, 1960): sus cambios tienen memoria y los del precio de cierre no. A 5 y 20 días ningún modelo le gana. Los choques de tono de las noticias no mueven la TRM de forma significativa. Los intervalos del 90 % cubren cerca de lo prometido.
+
+Artículo: [ES](https://nicolasforero.pages.dev/escritos/dolar-noticias/) · [EN](https://nicolasforero.pages.dev/en/writing/dollar-news/). Las cifras actualizadas están en `resultados/evaluacion.json`.
+
 ## Datos
 
 | Fuente | Qué | Desde |
@@ -35,6 +41,7 @@ GitHub Actions baja los datos y corre todo cada día hábil (`.github/workflows/
 - **No promete ganarle al paseo aleatorio.** Si las noticias no ayudan, el resultado lo dice.
 - **No lee los artículos por su cuenta.** Usa la codificación que GDELT hace de las noticias (tipo de hecho, tono, menciones); los errores de esa codificación pasan al modelo.
 - **No publica precios de mercado.** Solo la TRM (dato abierto oficial) y las series de noticias de GDELT quedan en el repositorio; el resto se descarga en cada corrida.
+- **El cierre de Yahoo no es oficial.** Se usa solo para la comparación con la TRM; Yahoo lo fecha un día después de la sesión y el código corrige ese desfase.
 - **No explica causas.** Un tono negativo que antecede a una devaluación puede reflejar lo que ya estaba pasando.
 
 ## Reproducir
